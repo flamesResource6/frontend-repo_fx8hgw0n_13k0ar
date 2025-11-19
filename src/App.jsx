@@ -1,71 +1,82 @@
+import { useMemo, useState } from 'react'
+import Header from './components/Header'
+import MatchList from './components/MatchList'
+import BetSlip from './components/BetSlip'
+import BetsHistory from './components/BetsHistory'
+
 function App() {
+  const [user, setUser] = useState(null)
+  const [balance, setBalance] = useState(0)
+  const [selections, setSelections] = useState([])
+  const [placing, setPlacing] = useState(false)
+
+  const onLogin = (u) => {
+    setUser(u)
+    setBalance(u.balance || 0)
+  }
+  const onLogout = () => {
+    setUser(null)
+    setSelections([])
+    setBalance(0)
+  }
+
+  const onTopup = (newBalance) => setBalance(newBalance)
+
+  const addSelection = (s) => {
+    if (!s?.odds) return
+    const exists = selections.find(x => x.match_id === s.match_id && x.market === s.market)
+    if (exists) return
+    setSelections(prev => [...prev, s])
+  }
+  const removeSelection = (idx) => setSelections(prev => prev.filter((_, i) => i !== idx))
+  const clearSelections = () => setSelections([])
+
+  const placeBet = async (stake) => {
+    if (!user) return alert('Please login first')
+    if (!selections.length) return
+    setPlacing(true)
+    try {
+      const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+      const res = await fetch(`${baseUrl}/api/bets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.user_id, stake, selections })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setBalance(data.balance)
+        setSelections([])
+        alert(`Bet placed! Potential return: ${data.potential_return}`)
+      } else {
+        const txt = await res.text()
+        alert(`Bet failed: ${txt}`)
+      }
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setPlacing(false)
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Subtle pattern overlay */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_50%)]"></div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <Header user={user} onLogin={onLogin} onLogout={onLogout} balance={balance} onTopup={onTopup} />
 
-      <div className="relative min-h-screen flex items-center justify-center p-8">
-        <div className="max-w-2xl w-full">
-          {/* Header with Flames icon */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center mb-6">
-              <img
-                src="/flame-icon.svg"
-                alt="Flames"
-                className="w-24 h-24 drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]"
-              />
-            </div>
-
-            <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">
-              Flames Blue
-            </h1>
-
-            <p className="text-xl text-blue-200 mb-6">
-              Build applications through conversation
-            </p>
-          </div>
-
-          {/* Instructions */}
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-8 shadow-xl mb-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                1
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Describe your idea</h3>
-                <p className="text-blue-200/80 text-sm">Use the chat panel on the left to tell the AI what you want to build</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                2
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Watch it build</h3>
-                <p className="text-blue-200/80 text-sm">Your app will appear in this preview as the AI generates the code</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                3
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Refine and iterate</h3>
-                <p className="text-blue-200/80 text-sm">Continue the conversation to add features and make changes</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="text-center">
-            <p className="text-sm text-blue-300/60">
-              No coding required • Just describe what you want
-            </p>
-          </div>
+      <main className="max-w-6xl mx-auto px-4 py-6 grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="text-2xl font-bold text-white">Today’s Matches</div>
+          <MatchList onAddSelection={addSelection} />
         </div>
-      </div>
+
+        <div className="space-y-4">
+          <BetSlip selections={selections} onRemove={removeSelection} onClear={clearSelections} onPlaceBet={placeBet} disabled={placing} />
+          <BetsHistory user={user} />
+        </div>
+      </main>
+
+      <footer className="py-10 text-center text-slate-400 text-sm">
+        YehagerBet Betting • Play responsibly. 18+
+      </footer>
     </div>
   )
 }
